@@ -1,0 +1,7 @@
+==27597== Memcheck, a memory error detector
+==27597== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==27597== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==27597== Command: ./server
+==27597==
+[INFO] Server listening on port 8778...
+

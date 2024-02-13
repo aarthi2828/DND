@@ -1,0 +1,179 @@
+ -:    0:Source:client.c
+        -:    0:Graph:client.gcno
+        -:    0:Data:-
+        -:    0:Runs:0
+        -:    0:Programs:0
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <stdbool.h>
+        -:    4:#include <string.h>
+        -:    5:#include <unistd.h>
+        -:    6:#include <arpa/inet.h>
+        -:    7:#include <ctype.h> // Include for isdigit()
+        -:    8:
+        -:    9:#define PORT 8999
+        -:   10:
+        -:   11:// Function prototypes
+        -:   12:void displayMenu();
+        -:   13:void activateDND(int clientSocket);
+        -:   14:bool isValidPhoneNumber(const char *number);
+        -:   15:
+        -:   16:// Debug log levels
+        -:   17:#define FATAL 0
+        -:   18:#define INFO 1
+        -:   19:#define WARNING 2
+        -:   20:#define DEBUG 3
+        -:   21:
+        -:   22:// Function to print debug log messages
+    #####:   23:void debugLog(int level, const char *message) {
+    #####:   24:    switch (level) {
+    #####:   25:        case FATAL:
+    #####:   26:            fprintf(stderr, "[FATAL] %s\n", message);
+    #####:   27:            break;
+    #####:   28:        case INFO:
+    #####:   29:            printf("[INFO] %s\n", message);
+    #####:   30:            break;
+    #####:   31:        case WARNING:
+    #####:   32:            printf("[WARNING] %s\n", message);
+    #####:   33:            break;
+    #####:   34:        case DEBUG:
+    #####:   35:            printf("[DEBUG] %s\n", message);
+    #####:   36:            break;
+    #####:   37:        default:
+    #####:   38:            fprintf(stderr, "[UNKNOWN LEVEL] %s\n", message);
+    #####:   39:            break;
+        -:   40:    }
+    #####:   41:}
+        -:   42:
+    #####:   43:int main() {
+        -:   44:    int clientSocket;
+        -:   45:    struct sockaddr_in serverAddr;
+        -:   46:
+        -:   47:    // Create socket
+    #####:   48:    if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    #####:   49:        perror("Socket creation failed");
+    #####:   50:        exit(EXIT_FAILURE);
+        -:   51:    }
+        -:   52:
+        -:   53:    // Set up server address structure
+    #####:   54:    serverAddr.sin_family = AF_INET;
+    #####:   55:    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // IP address of the server
+    #####:   56:    serverAddr.sin_port = htons(PORT);
+        -:   57:
+        -:   58:    // Connect to server
+    #####:   59:    if (connect(clientSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+    #####:   60:        perror("Connection failed");
+    #####:   61:        exit(EXIT_FAILURE);
+        -:   62:    }
+        -:   63:
+        -:   64:    char number[15];
+    #####:   65:    printf("Enter your number: ");
+    #####:   66:    scanf("%14s", number); // Limit input to 14 characters to prevent buffer overflow
+        -:   67:
+        -:   68:    // Validate the input number
+    #####:   69:    if (!isValidPhoneNumber(number)) {
+    #####:   70:        debugLog(FATAL, "Invalid number.");
+    #####:   71:        close(clientSocket);
+    #####:   72:        exit(EXIT_FAILURE);
+        -:   73:    }
+        -:   74:
+        -:   75:    // Send client's number to the server
+    #####:   76:    send(clientSocket, number, sizeof(number), 0);
+    #####:   77:    debugLog(INFO, "Sent client's number to the server.");
+        -:   78:
+    #####:   79:    printf("Welcome to DND Service!\n");
+        -:   80:
+    #####:   81:    displayMenu();
+        -:   82:    int choice;
+    #####:   83:    scanf("%d", &choice);
+        -:   84:
+        -:   85:    // Send client's choice to the server
+    #####:   86:    send(clientSocket, &choice, sizeof(choice), 0);
+    #####:   87:    debugLog(INFO, "Sent client's choice to the server.");
+        -:   88:
+    #####:   89:    switch (choice) {
+    #####:   90:        case 1:
+        -:   91:            // Activate DND
+    #####:   92:            activateDND(clientSocket);
+    #####:   93:            break;
+    #####:   94:        case 2:
+        -:   95:            // Deactivate DND
+    #####:   96:            printf("Deactivation message sent.\n");
+    #####:   97:            break;
+    #####:   98:        default:
+    #####:   99:            printf("Invalid choice.\n");
+    #####:  100:            break;
+        -:  101:    }
+        -:  102:
+    #####:  103:    close(clientSocket);
+        -:  104:
+    #####:  105:    return 0;
+        -:  106:}
+        -:  107:
+    #####:  108:void displayMenu() {
+    #####:  109:    printf("1. Activation\n");
+    #####:  110:    printf("2. Deactivation\n");
+    #####:  111:    printf("Enter your choice: ");
+    #####:  112:}
+        -:  113:
+    #####:  114:void activateDND(int clientSocket) {
+        -:  115:    int choice;
+    #####:  116:    printf("Enter your choice for activation (1 for global, 2 for selective):\n");
+    #####:  117:    scanf("%d", &choice);
+        -:  118:
+        -:  119:    // Send client's choice for activation to the server
+    #####:  120:    send(clientSocket, &choice, sizeof(choice), 0);
+    #####:  121:    debugLog(INFO, "Sent client's choice for activation to the server.");
+        -:  122:
+    #####:  123:    switch (choice) {
+    #####:  124:        case 1:
+    #####:  125:            printf("Global DND activated.\n");
+    #####:  126:            break;
+    #####:  127:        case 2:
+    #####:  128:            printf("Selective DND activated.\n");
+        -:  129:
+        -:  130:            // Enter the number of numbers to block
+        -:  131:            int num_to_block;
+    #####:  132:            printf("Enter the number of numbers you want to block: ");
+    #####:  133:            scanf("%d", &num_to_block);
+        -:  134:
+        -:  135:            // Send the number of numbers to block to the server
+    #####:  136:            send(clientSocket, &num_to_block, sizeof(num_to_block), 0);
+    #####:  137:            debugLog(INFO, "Sent the number of numbers to block to the server.");
+        -:  138:
+        -:  139:            // Enter the numbers to block
+        -:  140:            char buffer[15];
+    #####:  141:            for (int i = 0; i < num_to_block; ++i) {
+    #####:  142:                printf("Enter number to block: ");
+    #####:  143:                scanf("%14s", buffer); // Limit input to 14 characters to prevent buffer overflow
+        -:  144:
+        -:  145:                // Validate the input number
+    #####:  146:                if (!isValidPhoneNumber(buffer)) {
+    #####:  147:                    debugLog(FATAL, "Invalid number.");
+    #####:  148:                    close(clientSocket);
+    #####:  149:                    exit(EXIT_FAILURE);
+        -:  150:                }
+        -:  151:
+        -:  152:                // Send each number to block to the server
+    #####:  153:                send(clientSocket, buffer, sizeof(buffer), 0);
+    #####:  154:                debugLog(INFO, "Sent a number to block to the server.");
+        -:  155:            }
+        -:  156:
+    #####:  157:            printf("Blocked numbers sent to server.\n");
+    #####:  158:            break;
+    #####:  159:        default:
+    #####:  160:            printf("Invalid choice for activation.\n");
+    #####:  161:            break;
+        -:  162:    }
+    #####:  163:}
+        -:  164:
+    #####:  165:bool isValidPhoneNumber(const char *number) {
+    #####:  166:    int len = strlen(number);
+    #####:  167:    if (len != 10)
+    #####:  168:        return false;
+    #####:  169:    for (int i = 0; i < len; i++) {
+    #####:  170:        if (!isdigit(number[i]))
+    #####:  171:            return false;
+        -:  172:    }
+    #####:  173:    return true;
+        -:  174:}

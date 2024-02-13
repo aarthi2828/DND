@@ -1,0 +1,212 @@
+ -:    0:Source:server.c
+        -:    0:Graph:server.gcno
+        -:    0:Data:-
+        -:    0:Runs:0
+        -:    0:Programs:0
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <stdbool.h>
+        -:    4:#include <string.h>
+        -:    5:#include <unistd.h>
+        -:    6:#include <arpa/inet.h>
+        -:    7:#include <ctype.h>
+        -:    8:
+        -:    9:#define MAX_NUMBERS 10
+        -:   10:#define MAX_GROUPS 5
+        -:   11:#define PORT 8999
+        -:   12:
+        -:   13:typedef struct {
+        -:   14:    char numbers[MAX_NUMBERS][15];
+        -:   15:    int num_numbers;
+        -:   16:} DNDList;
+        -:   17:
+        -:   18:typedef struct {
+        -:   19:    char groups[MAX_GROUPS][20];
+        -:   20:    int num_groups;
+        -:   21:} DNDGroups;
+        -:   22:
+        -:   23:typedef struct {
+        -:   24:    char username[50];
+        -:   25:    char password[50];
+        -:   26:    char blocked_calls_filename[60];
+        -:   27:} UserInfo;
+        -:   28:
+        -:   29:// Debug log levels
+        -:   30:#define FATAL 0
+        -:   31:#define INFO 1
+        -:   32:#define WARNING 2
+        -:   33:#define DEBUG 3
+        -:   34:
+        -:   35:// Function to print debug log messages
+    #####:   36:void debugLog(int level, const char *message) {
+    #####:   37:    switch (level) {
+    #####:   38:        case FATAL:
+    #####:   39:            fprintf(stderr, "[FATAL] %s\n", message);
+    #####:   40:            break;
+    #####:   41:        case INFO:
+    #####:   42:            printf("[INFO] %s\n", message);
+    #####:   43:            break;
+    #####:   44:        case WARNING:
+    #####:   45:            printf("[WARNING] %s\n", message);
+    #####:   46:            break;
+    #####:   47:        case DEBUG:
+    #####:   48:            printf("[DEBUG] %s\n", message);
+    #####:   49:            break;
+    #####:   50:        default:
+    #####:   51:            fprintf(stderr, "[UNKNOWN LEVEL] %s\n", message);
+    #####:   52:            break;
+        -:   53:    }
+    #####:   54:}
+        -:   55:
+        -:   56:// Function prototypes
+        -:   57:bool isValidUser(char *number);
+        -:   58:void handleClient(int clientSocket, UserInfo *userInfo, DNDList *blockedList, DNDGroups *blockedGroups);
+        -:   59:
+    #####:   60:int main() {
+        -:   61:    UserInfo userInfo;
+    #####:   62:    DNDList blockedList = {.num_numbers = 0};
+    #####:   63:    DNDGroups blockedGroups = {.num_groups = 0};
+        -:   64:
+        -:   65:    int serverSocket, clientSocket;
+        -:   66:    struct sockaddr_in serverAddr, clientAddr;
+    #####:   67:    socklen_t addrLen = sizeof(clientAddr);
+        -:   68:
+        -:   69:    // Create socket
+    #####:   70:    if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    #####:   71:        perror("Socket creation failed");
+    #####:   72:        exit(EXIT_FAILURE);
+        -:   73:    }
+        -:   74:
+        -:   75:    // Set up server address structure
+    #####:   76:    serverAddr.sin_family = AF_INET;
+    #####:   77:    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    #####:   78:    serverAddr.sin_port = htons(PORT);
+        -:   79:
+        -:   80:    // Bind socket
+    #####:   81:    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
+    #####:   82:        perror("Bind failed");
+    #####:   83:        exit(EXIT_FAILURE);
+        -:   84:    }
+        -:   85:
+        -:   86:    // Listen for incoming connections
+    #####:   87:    if (listen(serverSocket, 5) == -1) {
+    #####:   88:        perror("Listen failed");
+    #####:   89:        exit(EXIT_FAILURE);
+        -:   90:    }
+        -:   91:
+    #####:   92:    debugLog(INFO, "Server listening on port 8778...");
+        -:   93:
+        -:   94:    while (1) {
+        -:   95:        // Accept incoming connection
+    #####:   96:        if ((clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &addrLen)) == -1) {
+    #####:   97:            perror("Accept failed");
+    #####:   98:            continue;
+        -:   99:        }
+        -:  100:
+    #####:  101:        debugLog(INFO, "Connection accepted.");
+        -:  102:
+        -:  103:        // Handle client requests
+    #####:  104:        handleClient(clientSocket, &userInfo, &blockedList, &blockedGroups);
+        -:  105:
+    #####:  106:        close(clientSocket);
+    #####:  107:        debugLog(INFO, "Connection closed.");
+        -:  108:    }
+        -:  109:
+        -:  110:    close(serverSocket);
+        -:  111:
+        -:  112:    return 0;
+        -:  113:}
+        -:  114:
+    #####:  115:bool isValidUser(char *number) {
+    #####:  116:    FILE *mobileRecordsFile = fopen("MobileRecords.txt", "r");
+    #####:  117:    if (!mobileRecordsFile) {
+    #####:  118:        perror("Error opening MobileRecords.txt");
+    #####:  119:        exit(EXIT_FAILURE);
+        -:  120:    }
+        -:  121:
+        -:  122:    char line[50];
+        -:  123:    char userNumber[15];
+    #####:  124:    while (fgets(line, sizeof(line), mobileRecordsFile)) {
+    #####:  125:        sscanf(line, " %[^,],", userNumber);
+    #####:  126:        if (strcmp(userNumber, number) == 0) {
+    #####:  127:            fclose(mobileRecordsFile);
+    #####:  128:            return true;
+        -:  129:        }
+        -:  130:    }
+        -:  131:
+    #####:  132:    fclose(mobileRecordsFile);
+    #####:  133:    return false;
+        -:  134:}
+        -:  135:
+    #####:  136:void handleClient(int clientSocket, UserInfo *userInfo, DNDList *blockedList, DNDGroups *blockedGroups) {
+        -:  137:    char buffer[1024];
+        -:  138:    char number[15];
+        -:  139:    int choice;
+        -:  140:
+        -:  141:    // Send welcome message to the client
+    #####:  142:    snprintf(buffer, sizeof(buffer), "Welcome to the DND Service!\n");
+    #####:  143:    send(clientSocket, buffer, strlen(buffer), 0);
+    #####:  144:    debugLog(INFO, "Sent welcome message to the client.");
+        -:  145:
+        -:  146:    // Receive client's mobile number
+    #####:  147:    recv(clientSocket, number, sizeof(number), 0);
+        -:  148:
+        -:  149:    // Check if the user is valid based on the MobileRecords.txt
+    #####:  150:    if (!isValidUser(number)) {
+    #####:  151:        debugLog(FATAL, "Invalid user. Connection closed.");
+    #####:  152:      close(clientSocket);
+    #####:  153:        return;
+        -:  154:    }
+        -:  155:
+        -:  156:    // Continue with the DND service activation
+    #####:  157:    debugLog(INFO, "User is valid.");
+        -:  158:
+        -:  159:    // Receive client's choice
+    #####:  160:    recv(clientSocket, &choice, sizeof(choice), 0);
+        -:  161:
+        -:  162:    FILE *file;
+    #####:  163:    switch (choice) {
+    #####:  164:        case 1:
+        -:  165:            // Activate DND
+    #####:  166:            debugLog(INFO, "Client activated DND service.");
+    #####:  167:            printf("Enter your choice for DND mode (1 for global, 2 for selective):\n");
+    #####:  168:            recv(clientSocket, &choice, sizeof(choice), 0);
+    #####:  169:            switch (choice) {
+    #####:  170:                case 1:
+    #####:  171:                    printf("Global DND activated for number: %s. Client will not receive any calls.\n", number);
+        -:  172:                    // Store user's information in CSV
+    #####:  173:                    file = fopen("userServerInfo.csv", "a");
+    #####:  174:                    fprintf(file, "%s,G\n", number);
+    #####:  175:                    fclose(file);
+    #####:  176:                    break;
+    #####:  177:                case 2:
+    #####:  178:                    printf("Selective DND activated for number: %s. Calls from specified numbers/groups will be blocked.\n", number);
+    #####:  179:                    printf("Enter the number of numbers you want to block: ");
+        -:  180:                    int num_to_block;
+    #####:  181:                    recv(clientSocket, &num_to_block, sizeof(num_to_block), 0);
+        -:  182:                    // Store blocked numbers in array
+        -:  183:                    char blockedNumbers[MAX_NUMBERS][15];
+    #####:  184:                    for (int i = 0; i < num_to_block; ++i) {
+    #####:  185:                        recv(clientSocket, buffer, sizeof(buffer), 0);
+    #####:  186:                        strcpy(blockedNumbers[i], buffer);
+        -:  187:                    }
+        -:  188:                    // Store all blocked numbers in CSV
+    #####:  189:                    file= fopen("userServerInfo.csv", "a");
+    #####:  190:                    fprintf(file, "%s,S", number);
+    #####:  191:                    for (int i = 0; i < num_to_block; ++i) {
+    #####:  192:                        fprintf(file, ",%s", blockedNumbers[i]);
+        -:  193:                    }
+    #####:  194:                    fprintf(file, "\n");
+    #####:  195:                    fclose(file);
+    #####:  196:                    printf("Blocked %d numbers for number: %s.\n", num_to_block, number);
+    #####:  197:                    break;
+    #####:  198:                default:
+    #####:  199:                    debugLog(WARNING,"Invalid choice for DND mode.\n");
+    #####:  200:                    break;
+        -:  201:            }
+    #####:  202:            break;
+    #####:  203:        default:
+    #####:  204:            debugLog(WARNING,"Invalid choice for activation.\n");
+    #####:  205:            break;
+        -:  206:    }
+        -:  207:}
